@@ -6,7 +6,7 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 import requests
@@ -89,6 +89,7 @@ class OpenAccessClient:
 def build_pdf_archive(
     client: OpenAccessClient,
     articles: list[Any],
+    progress_callback: Callable[[int], None] | None = None,
 ) -> tuple[bytes, list[str], list[str], list[str]]:
     """Devuelve ZIP, nombres descargados, títulos sin PDF y errores."""
 
@@ -98,15 +99,20 @@ def build_pdf_archive(
     errors: list[str] = []
     used_names: set[str] = set()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for article in articles:
+        total_articles = len(articles)
+        for index, article in enumerate(articles, start=1):
             try:
                 pdf = client.find_pdf(article.doi, article.title)
                 if pdf is None:
                     unavailable.append(article.title)
+                    if progress_callback:
+                        progress_callback(round(index / total_articles * 100))
                     continue
                 content = client.download(pdf)
             except (OpenAccessError, requests.RequestException) as exc:
                 errors.append(f"{article.title}: {exc}")
+                if progress_callback:
+                    progress_callback(round(index / total_articles * 100))
                 continue
             filename = _safe_filename(article.title or article.doi) + ".pdf"
             base_name = filename[:-4]
@@ -117,6 +123,8 @@ def build_pdf_archive(
             used_names.add(filename)
             zip_file.writestr(filename, content)
             downloaded.append(filename)
+            if progress_callback:
+                progress_callback(round(index / total_articles * 100))
     return archive.getvalue(), downloaded, unavailable, errors
 
 

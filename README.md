@@ -1,6 +1,6 @@
-# Extractor de artículos y metadatos de Scopus
+# Extractor de artículos y metadatos de Scopus y PubMed
 
-Aplicación web en Python para buscar artículos de Scopus, consultar sus
+Aplicación web en Python para buscar artículos de Scopus o PubMed, consultar sus
 metadatos y exportarlos en formatos reutilizables. También puede localizar y
 descargar copias PDF que estén disponibles legalmente en acceso abierto.
 
@@ -11,6 +11,9 @@ búsqueda configurada por tema y filtros.
 ## Funcionalidades
 
 - Búsqueda en Scopus mediante la API oficial de Elsevier.
+- Búsqueda en PubMed mediante NCBI E-utilities, sin necesidad de una clave.
+- Consultas guiadas y avanzadas con la sintaxis nativa de PubMed.
+- Selector de base bibliográfica que adapta la barra lateral a Scopus o PubMed.
 - Expresiones de búsqueda por título, resumen y palabras clave.
 - Modo de búsqueda avanzada con la sintaxis nativa de Scopus.
 - Configuración del número máximo de artículos.
@@ -39,6 +42,42 @@ búsqueda configurada por tema y filtros.
 - Validación de respuestas para evitar guardar contenido que no sea PDF.
 - Informe separado de artículos sin copia PDF y errores de descarga.
 - Pruebas automatizadas sin consumir la cuota de la API.
+
+## Búsqueda en PubMed
+
+Al seleccionar **PubMed** en el selector de base bibliográfica, la barra lateral
+se reemplaza por los controles propios de PubMed. Se puede buscar por tema o
+escribir una consulta avanzada de PubMed, con filtros opcionales de años,
+idioma, tipo de publicación y orden de resultados. Los resultados incluyen
+título, autores, revista, fecha, resumen, DOI, PMID y PMC.
+
+Los registros con identificador PMC se marcan como acceso abierto. PubMed no
+proporciona un recuento de citas comparable al de Scopus, por lo que ese campo
+se exporta como cero. Los resultados se pueden descargar en JSON o CSV y sus
+DOI se pueden enviar a Unpaywall para preparar un ZIP con copias PDF OA
+disponibles legalmente.
+
+PubMed no exige API key para un uso normal. Se puede indicar un correo y,
+opcionalmente, una clave de NCBI para identificar las solicitudes y aumentar
+el límite de peticiones. Estas opciones se configuran mediante `PUBMED_EMAIL`
+y `PUBMED_API_KEY` en `.env`.
+
+Ejemplo de consulta avanzada:
+
+```text
+"lung cancer"[Title/Abstract]
+AND 2020:2026[Date - Publication]
+AND "Review"[Publication Type]
+```
+
+Campos habituales de PubMed:
+
+- `[Title]`, `[Title/Abstract]`, `[Author]` y `[Journal]`.
+- `[Date - Publication]`, `[Language]` y `[Publication Type]`.
+- `AND`, `OR` y `NOT` para combinar criterios.
+
+La sintaxis avanzada se envía a PubMed sin modificar. En ese modo, los filtros
+guiados de fecha, idioma y tipo de publicación no se agregan automáticamente.
 
 ## Importante sobre Scopus, acceso abierto y PDFs
 
@@ -140,6 +179,8 @@ Edita `.env` y coloca tus valores:
 ```env
 SCOPUS_API_KEY="tu_clave_real_de_elsevier"
 UNPAYWALL_EMAIL="tu_correo@ejemplo.com"
+PUBMED_EMAIL="tu_correo@ejemplo.com"
+PUBMED_API_KEY=""
 ```
 
 Las comillas dobles son opcionales para valores sencillos, pero se recomienda
@@ -151,6 +192,8 @@ Ejemplo válido:
 ```env
 SCOPUS_API_KEY="abc123"
 UNPAYWALL_EMAIL="investigador@universidad.edu"
+PUBMED_EMAIL="investigador@universidad.edu"
+PUBMED_API_KEY=""
 ```
 
 Ejemplo que debe evitarse:
@@ -164,6 +207,9 @@ compartas su contenido. Si una clave se expone, revócala y genera otra.
 
 La variable `UNPAYWALL_EMAIL` no es una clave secreta. Unpaywall la solicita
 para identificar las peticiones realizadas a su servicio.
+
+`PUBMED_EMAIL` tampoco es una clave secreta; se utiliza para identificar las
+solicitudes ante NCBI. `PUBMED_API_KEY` es opcional y debe mantenerse privada.
 
 ## Ejecutar la aplicación
 
@@ -203,7 +249,16 @@ ScriptRunContext` y la interfaz no funcionará correctamente.
 
 ## Uso de la interfaz
 
-### 1. Configuración de la API
+### 1. Seleccionar la base bibliográfica
+
+En la parte superior selecciona **Scopus** o **PubMed**. La barra lateral
+cambia automáticamente para mostrar únicamente los controles de la fuente
+seleccionada:
+
+- **Scopus**: clave de Elsevier, filtros de Scopus y configuración de Unpaywall.
+- **PubMed**: correo y clave opcional de NCBI, filtros y sintaxis de PubMed.
+
+### 2. Configuración de la API
 
 La barra lateral permite introducir la clave API. Si existe `SCOPUS_API_KEY`
 en `.env`, se carga automáticamente como valor inicial y se muestra oculta.
@@ -211,7 +266,7 @@ en `.env`, se carga automáticamente como valor inicial y se muestra oculta.
 También se puede introducir manualmente la clave en la interfaz sin modificar
 `.env`.
 
-### 2. Configurar la búsqueda
+### 3. Configurar la búsqueda
 
 La interfaz ofrece dos modos:
 
@@ -259,7 +314,9 @@ devuelto por la API.
   ("machine learning" OR "deep learning") AND agriculture
   ```
 
-- **Número de artículos**: cantidad máxima solicitada, entre 1 y 200.
+- **Número de artículos**: cantidad solicitada, sin límite artificial en la
+  interfaz. La cantidad real puede estar limitada por la API, la cuota de la
+  cuenta, la disponibilidad de resultados y la memoria del equipo.
 - **Solo acceso abierto**: agrega `OPENACCESS(1)` a la consulta cuando está
   activado.
 - **Rango de años**: limita el periodo de publicación.
@@ -273,15 +330,23 @@ devuelto por la API.
   `ENVI`.
 - **Ordenar por**: fecha de publicación, número de citas o relevancia.
 
-### 3. Ejecutar la búsqueda
+#### Controles de PubMed
 
-Pulsa **Extraer artículos**. Los resultados se guardan en la sesión actual y
-se muestran en una tabla.
+Cuando está seleccionada PubMed, la barra lateral ofrece modo guiado o
+avanzado, términos de búsqueda, consulta avanzada, número máximo de artículos,
+rango de fechas, idioma, tipo de publicación y orden por relevancia, fecha o
+autor. La consulta avanzada se envía con la sintaxis nativa de PubMed sin
+modificar.
 
-Una nueva búsqueda reemplaza los resultados anteriores y limpia el ZIP de PDFs
-preparado anteriormente.
+### 4. Ejecutar la búsqueda
 
-### 4. Descargar metadatos
+En Scopus pulsa **Extraer artículos de Scopus**. En PubMed pulsa **Buscar en
+PubMed**. Los resultados se guardan en la sesión actual y se muestran en una
+tabla.
+
+Una nueva búsqueda reemplaza los resultados anteriores de esa fuente.
+
+### 5. Descargar metadatos
 
 Después de una búsqueda aparecen dos botones:
 
@@ -290,14 +355,14 @@ Después de una búsqueda aparecen dos botones:
 - **Descargar CSV**: genera un archivo tabular con codificación UTF-8 con BOM,
   adecuada para abrirlo en Excel.
 
-### 5. Descargar PDFs de acceso abierto
+### 6. Descargar PDFs de acceso abierto
 
 Para habilitar esta opción, configura `UNPAYWALL_EMAIL` o escribe un correo en
 la barra lateral.
 
-1. Ejecuta una búsqueda.
+1. Selecciona Scopus o PubMed y ejecuta una búsqueda.
 2. Ve a la sección **PDFs de acceso abierto**.
-3. Pulsa **Buscar y preparar PDFs OA**.
+3. Pulsa **Buscar y preparar PDFs OA** o **Buscar y preparar PDFs OA de PubMed**.
 4. Espera a que se consulte Unpaywall y se descarguen las copias disponibles.
 5. Pulsa **Descargar PDFs en ZIP**.
 
@@ -328,12 +393,14 @@ marque un registro como acceso abierto no garantiza que Unpaywall tenga un PDF.
 │   ├── __init__.py
 │   ├── client.py
 │   ├── exporters.py
-│   └── open_access.py
+│   ├── open_access.py
+│   └── pubmed.py
 ├── scripts/
 │   └── check_publication.py
 └── tests/
     ├── test_extractor.py
-    └── test_open_access.py
+    ├── test_open_access.py
+    └── test_pubmed.py
 ```
 
 ### Responsabilidad de cada archivo
@@ -341,6 +408,8 @@ marque un registro como acceso abierto no garantiza que Unpaywall tenga un PDF.
 - `app.py`: interfaz Streamlit, formularios, mensajes y botones de descarga.
 - `scopus_extractor/client.py`: consulta a la API de búsqueda de Scopus y
   normalización de resultados.
+- `scopus_extractor/pubmed.py`: consulta NCBI E-utilities y normaliza los
+  registros XML de PubMed.
 - `scopus_extractor/exporters.py`: conversión de artículos a JSON y CSV.
 - `scopus_extractor/open_access.py`: consulta a Unpaywall, validación de PDFs y
   creación del ZIP.
@@ -515,7 +584,9 @@ contenido y licencia.
 ## Limitaciones actuales
 
 - La búsqueda depende de la disponibilidad y permisos de la API de Scopus.
-- La cantidad de resultados está limitada a 200 por búsqueda en la interfaz.
+- No existe un límite artificial de resultados en la interfaz. Scopus, PubMed,
+  las cuotas de sus API y la memoria disponible pueden imponer límites
+  prácticos.
 - No se descargan artículos que no tengan una copia OA localizable.
 - No se guardan resultados en una base de datos.
 - No se reanudan descargas interrumpidas.
