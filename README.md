@@ -594,8 +594,6 @@ contenido y licencia.
   bastante memoria RAM.
 - El servicio de Unpaywall requiere un correo electrónico identificable.
 
-## Licencia
+## AUTOR
 
-Este repositorio no declara todavía una licencia de distribución. Antes de
-publicarlo o reutilizarlo como paquete, añade una licencia adecuada al proyecto
-y revisa las condiciones de uso de las APIs y de los contenidos descargados.
+Este repositorio esta craeado para poder ayudar en trabajos que neseciten obtener información, solo pido citar mi trabajo, muchas gracias
